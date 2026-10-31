@@ -141,7 +141,9 @@ struct ModernMCPResultTests {
     let error = HTTPResponse.error(statusCode: 400, .invalidParams("invalid"))
     let normalizedError = await registry.addingModernServerInfo(to: error)
     #expect(normalizedError.statusCode == 400)
-    #expect(normalizedError.bodyData == error.bodyData)
+    let expectedError = try await object(error)
+    let actualError = try await object(normalizedError)
+    #expect(NSDictionary(dictionary: actualError).isEqual(to: expectedError))
   }
 
   @Test

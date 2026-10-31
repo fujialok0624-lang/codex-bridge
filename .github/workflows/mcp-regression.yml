@@ -1,0 +1,68 @@
+name: MCP protocol regression
+
+on:
+  push:
+    branches: ['fix/mcp-resulttype-tests']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    container: swift:6.3.3-noble
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare focused protocol test package
+        shell: bash
+        run: |
+          mkdir -p .build/mcp-regression/Tests
+          cp Packages/BridgeCore/Tests/BridgeMCPResultTests/ModernMCPResultTests.swift .build/mcp-regression/Tests/
+          cat > .build/mcp-regression/Package.swift <<'SWIFT'
+          // swift-tools-version: 6.1
+          import PackageDescription
+          let package = Package(
+            name: "MCPProtocolRegression",
+            dependencies: [
+              .package(name: "BridgeCore", path: "../../Packages/BridgeCore"),
+              .package(name: "swift-sdk", path: "../../Vendor/swift-sdk"),
+            ],
+            targets: [
+              .testTarget(
+                name: "MCPProtocolRegressionTests",
+                dependencies: [
+                  .product(name: "BridgeMCP", package: "BridgeCore"),
+                  .product(name: "MCP", package: "swift-sdk"),
+                ],
+                path: "Tests"
+              )
+            ]
+          )
+          SWIFT
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: .build/mcp-regression/.build
+          key: mcp-regression-swift-6.3.3-${{ runner.os }}-${{ github.sha }}
+          restore-keys: mcp-regression-swift-6.3.3-${{ runner.os }}-
+      - name: Run real protocol tests and require nonzero count
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test --package-path .build/mcp-regression 2>&1 | tee /tmp/mcp-regression.log
+          grep -E 'Test run with [1-9][0-9]* tests' /tmp/mcp-regression.log
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .build/mcp-regression/.build
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-regression-log
+          path: /tmp/mcp-regression.log
+          if-no-files-found: ignore

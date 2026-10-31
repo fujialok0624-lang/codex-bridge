@@ -147,6 +147,10 @@ let package = Package(
     ),
   ],
   targets: [
+    .testTarget(
+      name: "BridgeMCPResultTests",
+      dependencies: ["BridgeMCP", .product(name: "MCP", package: "swift-sdk")]
+    ),
     .target(
       name: "BridgeDesktopUI",
       dependencies: ["BridgeServiceAppCore", "BridgeAgentCore"],

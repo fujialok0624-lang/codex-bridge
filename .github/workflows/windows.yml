@@ -2,7 +2,7 @@ name: windows
 
 on:
   push:
-    branches: [win, 'codex/platform-*']
+    branches: [win, 'codex/platform-*', 'fix/modern-mcp-resulttype']
   pull_request:
     branches: [win]
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        architecture: ${{ fromJSON(inputs.architecture == 'arm64' && '["arm64"]' || inputs.architecture == 'x64' && '["x64"]' || '["x64","arm64"]') }}
+        architecture: ${{ fromJSON(github.ref == 'refs/heads/fix/modern-mcp-resulttype' && '["x64"]' || inputs.architecture == 'arm64' && '["arm64"]' || inputs.architecture == 'x64' && '["x64"]' || '["x64","arm64"]') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -177,6 +177,8 @@ jobs:
             -VcpkgInstalledRoot "$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.architecture }}-windows" `
             -TargetTriple $targetTriple -LibraryPaths ($env:TARGET_LIBRARY_PATHS -split ";"))
           $buildArguments = @($swiftArguments) + @("-c", "release")
+          swift test @buildArguments --filter ModernMCPResultTests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           swift build @buildArguments --product codex-bridge-windows-app
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           swift build @buildArguments --product codex-bridge-service

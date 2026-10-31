@@ -203,6 +203,9 @@ extension MCPSessionRegistry {
     else {
       return response
     }
+    if result["resultType"] == nil {
+      result["resultType"] = "complete"
+    }
     var metadata = result["_meta"] as? [String: Any] ?? [:]
     metadata["io.modelcontextprotocol/serverInfo"] = [
       "name": "Codex Bridge",

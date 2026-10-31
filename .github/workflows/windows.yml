@@ -34,15 +34,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Exclude build directories from Windows Defender
-        shell: pwsh
-        run: |
-          Add-MpPreference -ExclusionPath (Join-Path $env:GITHUB_WORKSPACE "Packages")
-          Add-MpPreference -ExclusionPath (Join-Path $env:GITHUB_WORKSPACE ".build")
-          Add-MpPreference -ExclusionProcess "swift-frontend.exe"
-          Add-MpPreference -ExclusionProcess "swift.exe"
-          Add-MpPreference -ExclusionProcess "clang.exe"
-          Add-MpPreference -ExclusionProcess "lld-link.exe"
       - name: Restore Swift installer cache
         id: swift-installer-cache
         uses: actions/cache/restore@v6

@@ -166,6 +166,27 @@ mcp:
     if($get.StatusCode -ne 405) { throw 'Expected GET 405' }
     $d | ConvertTo-Json -Depth 50 | Out-Null
     Write-Output 'LOOPBACK ADAPTER REAL WINDOWS BINARY PASS tools=47'
+    $legacyHeaders=@{'Accept'='application/json, text/event-stream'}
+    $initBody='{"jsonrpc":"2.0","id":101,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"adapter-legacy-smoke","version":"1"}}}'
+    $initialized=Invoke-WebRequest -Uri $base -Method Post -Headers $legacyHeaders -ContentType application/json -Body $initBody -TimeoutSec 35 -SkipHttpErrorCheck
+    if($initialized.StatusCode -ne 200) { throw "Adapter legacy initialize returned $($initialized.StatusCode)" }
+    $session=[string]$initialized.Headers['Mcp-Session-Id'][0]
+    if(!$session) { throw 'Adapter legacy session missing' }
+    try {
+      $initJSON=$initialized.Content | ConvertFrom-Json
+      if($initJSON.result.protocolVersion -ne '2025-11-25') { throw 'Legacy initialization version mismatch' }
+      $legacyHeaders['Mcp-Session-Id']=$session
+      $legacyHeaders['Mcp-Protocol-Version']='2025-11-25'
+      $listed=Invoke-WebRequest -Uri $base -Method Post -Headers $legacyHeaders -ContentType application/json -Body '{"jsonrpc":"2.0","id":102,"method":"tools/list","params":{}}' -TimeoutSec 35 -SkipHttpErrorCheck
+      if($listed.StatusCode -ne 200) { throw "Adapter legacy listing returned $($listed.StatusCode)" }
+      $listedJSON=$listed.Content | ConvertFrom-Json
+      if($listedJSON.result.tools.Count -ne 47) { throw 'Adapter legacy tool count mismatch' }
+      Write-Output 'LOOPBACK ADAPTER LEGACY INITIALIZE AND LIST PASS tools=47'
+    } finally {
+      $deleted=Invoke-WebRequest -Uri $base -Method Delete -Headers $legacyHeaders -TimeoutSec 10 -SkipHttpErrorCheck
+      if($deleted.StatusCode -ne 200) { throw 'Legacy session cleanup failed' }
+    }
+
   } finally {
     if($adapter -and !$adapter.HasExited) { Stop-Process -Id $adapter.Id -Force }
   }

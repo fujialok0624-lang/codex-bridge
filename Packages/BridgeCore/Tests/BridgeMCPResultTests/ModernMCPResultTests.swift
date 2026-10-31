@@ -89,6 +89,32 @@ struct ModernMCPResultTests {
   }
 
   @Test
+  func discoveryAdvertisesModernVersionAndCompleteResult() async throws {
+    let registry = makeRegistry()
+    let request = HTTPRequest(
+      method: "POST",
+      headers: [
+        "Host": "127.0.0.1:18765",
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "Mcp-Protocol-Version": "2026-07-28",
+        "Mcp-Method": "server/discover",
+      ],
+      body: Data(#"{"jsonrpc":"2.0","id":9,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}"#.utf8),
+      path: "/mcp"
+    )
+    let response = await registry.handle(request)
+    #expect(response.statusCode == 200)
+    let envelope = try await object(response)
+    let result = try #require(envelope["result"] as? [String: Any])
+    #expect(result["resultType"] as? String == "complete")
+    let versions = try #require(result["supportedVersions"] as? [String])
+    #expect(versions.contains("2026-07-28"))
+    #expect(response.headers[HTTPHeaderName.sessionID] == nil)
+    await registry.stop()
+  }
+
+  @Test
   func existingResultTypeAndMetadataArePreserved() async throws {
     let registry = makeRegistry()
     let original = Data(#"{"jsonrpc":"2.0","id":4,"result":{"resultType":"input_required","inputRequests":{},"_meta":{"custom":"keep"}}}"#.utf8)

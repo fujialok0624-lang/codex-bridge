@@ -1,6 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $root = Join-Path $env:RUNNER_TEMP 'bridge-smoke'
 New-Item -ItemType Directory -Force $root | Out-Null
+Get-ChildItem "$env:GITHUB_WORKSPACE/payload" -Recurse -File | Select-Object FullName,Length | Format-Table
+Get-ChildItem "$env:GITHUB_WORKSPACE/payload" -Filter '*.zip' -Recurse | ForEach-Object { Expand-Archive $_.FullName -DestinationPath "$env:GITHUB_WORKSPACE/payload/expanded" -Force }
 $exe = Get-ChildItem "$env:GITHUB_WORKSPACE/payload" -Recurse -Filter codex-bridge-service.exe | Select-Object -First 1
 if (!$exe) { throw 'Service executable absent' }
 $exeDir = $exe.Directory.FullName

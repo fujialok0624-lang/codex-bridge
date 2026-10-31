@@ -3,6 +3,7 @@ name: MCP protocol regression
 on:
   push:
     branches: ['fix/mcp-resulttype-tests']
+    paths: ['Packages/BridgeCore/Tests/BridgeMCPResultTests/**', 'Packages/BridgeCore/Sources/BridgeMCP/**', '.github/workflows/mcp-regression.yml']
   workflow_dispatch:
 
 permissions:

@@ -38,7 +38,9 @@ struct ModernMCPResultTests {
       for try await event in events {
         for line in String(decoding: event, as: UTF8.self).components(separatedBy: "\n") {
           guard line.hasPrefix("data:") else { continue }
-          let data = Data(line.dropFirst(5).trimmingCharacters(in: .whitespaces).utf8)
+          let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+          guard !payload.isEmpty else { continue }
+          let data = Data(payload.utf8)
           return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         }
       }

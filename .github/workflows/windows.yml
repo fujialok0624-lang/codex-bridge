@@ -168,8 +168,12 @@ jobs:
             -VcpkgInstalledRoot "$env:VCPKG_INSTALLATION_ROOT\installed\${{ matrix.architecture }}-windows" `
             -TargetTriple $targetTriple -LibraryPaths ($env:TARGET_LIBRARY_PATHS -split ";"))
           $buildArguments = @($swiftArguments) + @("-c", "release")
-          swift test @buildArguments --filter ModernMCPResultTests
+          $testLog = Join-Path $env:RUNNER_TEMP "mcp-protocol-tests.log"
+          swift test @buildArguments 2>&1 | Tee-Object -FilePath $testLog
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Select-String -Path $testLog -Pattern "Test run with [1-9][0-9]* tests" -Quiet)) {
+            throw "Protocol regression suite did not execute any tests."
+          }
           swift build @buildArguments --product codex-bridge-windows-app
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           swift build @buildArguments --product codex-bridge-service

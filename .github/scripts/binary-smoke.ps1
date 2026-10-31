@@ -142,6 +142,33 @@ mcp:
     Get-Content $proxyErr -ErrorAction SilentlyContinue | Set-Content (Join-Path $evidence 'dev-proxy.log')
     Remove-Item Env:BRIDGE_SMOKE_TOKEN
   }
+
+  $ready=Join-Path $root 'adapter-ready.json'
+  $adapterScript=Join-Path $env:GITHUB_WORKSPACE 'Scripts/Diagnostics/local_mcp_adapter.py'
+  $adapter=Start-Process python -ArgumentList @($adapterScript,'--ports',"$port",'--ready-file',$ready) -PassThru -RedirectStandardOutput (Join-Path $root 'adapter.out') -RedirectStandardError (Join-Path $root 'adapter.err')
+  try {
+    for($n=0;$n -lt 40;$n++) {
+      if(Test-Path $ready) { break }
+      $adapter.Refresh()
+      if($adapter.HasExited) { Get-Content (Join-Path $root 'adapter.err'); throw 'Adapter exited' }
+      Start-Sleep -Milliseconds 500
+    }
+    $a=Get-Content $ready -Raw | ConvertFrom-Json
+    $base="http://127.0.0.1:$($a.port)$($a.path)"
+    $headers.Remove('X-Codex-Bridge-Token')
+    $d=Request 'server/discover' @{} 'adapter-discover'
+    $t=Request 'tools/list' @{} 'adapter-tools'
+    $status=Request 'tools/call' @{name='bridge_status';arguments=@{}} 'adapter-status'
+    if($t.result.tools.Count -ne 47) { throw 'Expected 47 plain tools' }
+    $wrong=Invoke-WebRequest "http://127.0.0.1:$($a.port)/mcp" -SkipHttpErrorCheck
+    if($wrong.StatusCode -ne 404) { throw 'Adapter path authentication failed' }
+    $get=Invoke-WebRequest $base -SkipHttpErrorCheck
+    if($get.StatusCode -ne 405) { throw 'Expected GET 405' }
+    $d | ConvertTo-Json -Depth 50 | Out-Null
+    Write-Output 'LOOPBACK ADAPTER REAL WINDOWS BINARY PASS tools=47'
+  } finally {
+    if($adapter -and !$adapter.HasExited) { Stop-Process -Id $adapter.Id -Force }
+  }
 } finally {
   if($proc -and !$proc.HasExited) { Stop-Process -Id $proc.Id -Force }
   Get-Content $stderr -ErrorAction SilentlyContinue

@@ -2,7 +2,7 @@ name: Real Windows binary MCP smoke
 on:
   push:
     branches: ['fix/mcp-resulttype-tests']
-    paths: ['.github/workflows/binary-smoke.yml', '.github/scripts/binary-smoke.ps1']
+    paths: ['.github/workflows/binary-smoke.yml', '.github/scripts/binary-smoke.ps1', 'Scripts/Diagnostics/local_mcp_adapter.py']
 permissions:
   contents: read
   actions: read

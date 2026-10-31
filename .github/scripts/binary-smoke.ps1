@@ -74,7 +74,19 @@ public static class BridgeCred {
     $text | Set-Content (Join-Path $evidence "$label.json") -Encoding utf8
     Write-Output "$label status=$($r.StatusCode) contentType=$($r.Headers['Content-Type']) bytes=$($r.RawContentLength)"
     if($r.StatusCode -ne 200) { Write-Output $text; throw "$label returned non-200" }
-    $j = $text | ConvertFrom-Json -AsHashtable
+    if ($text.TrimStart().StartsWith('{')) {
+      $j = $text | ConvertFrom-Json -AsHashtable
+    } else {
+      $j = $null
+      foreach($line in ($text -split "\r?\n")) {
+        if(!$line.StartsWith('data:')) { continue }
+        $payload=$line.Substring(5).Trim()
+        if(!$payload) { continue }
+        $obj=$payload | ConvertFrom-Json -AsHashtable
+        if($obj.id -eq $label -and ($obj.ContainsKey('result') -or $obj.ContainsKey('error'))) { $j=$obj; break }
+      }
+      if(!$j) { throw "$label no terminal SSE response" }
+    }
     if($j.error) { Write-Output $text; throw "$label returned JSON-RPC error" }
     if($j.result.resultType -ne 'complete') { throw "$label missing complete resultType" }
     return $j
@@ -93,6 +105,43 @@ public static class BridgeCred {
   & $helper dev proxy --help | Set-Content (Join-Path $evidence 'dev-proxy-help.txt')
   Get-Content (Join-Path $evidence 'dev-proxy-help.txt')
   Write-Output 'REAL WINDOWS BINARY LOCAL MCP SMOKE PASS'
+  $env:BRIDGE_SMOKE_TOKEN=$token
+  $profile=Join-Path $root 'local.yaml'
+  @"
+config_version: 1
+mcp:
+  server_urls:
+    - channel: main
+      url: $base
+  extra_headers:
+    X-Codex-Bridge-Token: env:BRIDGE_SMOKE_TOKEN
+  discovery_extra_headers:
+    X-Codex-Bridge-Token: env:BRIDGE_SMOKE_TOKEN
+"@ | Set-Content $profile -Encoding utf8
+  $urlFile=Join-Path $root 'proxy.json'
+  $proxyOut=Join-Path $root 'proxy.stdout.txt'
+  $proxyErr=Join-Path $root 'proxy.stderr.txt'
+  $proxy=Start-Process $helper -ArgumentList @('dev','proxy','--profile-file',$profile,'--url-file',$urlFile,'--duration','90s') -PassThru -RedirectStandardOutput $proxyOut -RedirectStandardError $proxyErr
+  try {
+    for($n=0;$n -lt 80;$n++) {
+      if(Test-Path $urlFile) { break }
+      if($proxy.HasExited) { Get-Content $proxyErr; throw 'Dev proxy exited' }
+      Start-Sleep -Milliseconds 500
+    }
+    if(!(Test-Path $urlFile)) { Get-Content $proxyErr; throw 'Dev proxy did not become ready' }
+    $connection=Get-Content $urlFile -Raw | ConvertFrom-Json
+    $base=$connection.mcp_url
+    if(!$base.StartsWith('http://127.0.0.1:')) { throw 'Unexpected proxy endpoint' }
+    $d=Request 'server/discover' @{} 'tunnel-discover'
+    $t=Request 'tools/list' @{} 'tunnel-tools'
+    $ui=Request 'resources/read' @{uri='ui://codex-bridge/file-transfer.html'} 'tunnel-file-transfer'
+    $status=Request 'tools/call' @{name='bridge_status';arguments=@{}} 'tunnel-status'
+    Write-Output "TUNNEL CLIENT AND WINDOWS BINARY MCP SMOKE PASS tools=$($t.result.tools.Count)"
+  } finally {
+    if($proxy -and !$proxy.HasExited) { Stop-Process -Id $proxy.Id -Force }
+    Get-Content $proxyErr -ErrorAction SilentlyContinue | Set-Content (Join-Path $evidence 'dev-proxy.log')
+    Remove-Item Env:BRIDGE_SMOKE_TOKEN
+  }
 } finally {
   if($proc -and !$proc.HasExited) { Stop-Process -Id $proc.Id -Force }
   Get-Content $stderr -ErrorAction SilentlyContinue

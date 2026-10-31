@@ -1,0 +1,30 @@
+name: Real Windows binary MCP smoke
+on:
+  push:
+    branches: ['fix/mcp-resulttype-tests']
+    paths: ['.github/workflows/binary-smoke.yml', '.github/scripts/binary-smoke.ps1']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  smoke:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-bridge-windows-x64
+          path: payload
+          github-token: ${{ github.token }}
+          run-id: 41152828249
+      - name: Probe actual packaged service and resources
+        shell: pwsh
+        run: ./.github/scripts/binary-smoke.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: binary-mcp-smoke-evidence
+          path: smoke-evidence
